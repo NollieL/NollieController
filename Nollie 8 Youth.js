@@ -6,13 +6,19 @@ export function Size() { return [1, 1]; }
 export function DefaultPosition(){return [0, 0];}
 export function DefaultScale(){return 1.0;}
 export function Type() { return "Hid"; }
-
 export function ControllableParameters() 
 {
 	return [
-		{"property":"shutdownColor", "label":"Shutdown Color", "min":"0", "max":"360", "type":"color", "default":"000000"},
-		{"property":"LightingMode", "label":"Lighting Mode", "type":"combobox", "values":["Canvas", "Forced"], "default":"Canvas"},
-		{"property":"forcedColor", "label":"Forced Color", "min":"0", "max":"360", "type":"color", "default":"009bde"}
+		{"property":"shutdownColor", "group":"lighting", "label":"Shutdown Color", "min":"0", "max":"360", "type":"color", "default":"#009bde"},
+		{"property":"LightingMode", "group":"lighting", "label":"Lighting Mode", "type":"combobox", "values":["Canvas", "Forced"], "default":"Canvas"},
+		{"property":"forcedColor", "group":"lighting", "label":"Forced Color", "min":"0", "max":"360", "type":"color", "default":"#009bde"},
+		{"property":"Lampeffect", "group":"lighting", "label":"Lamp effect",  "type":"combobox", "values":["Shutdown Color","Rainbow Wave", "Water rainbow","Horse race","Meteor chase"], "default":"Rainbow Wave"},
+		{"property":"LampeffectColor", "group":"lighting", "label":"Lamp effect Color",  "type":"combobox", "values":["Black", "green", "red", "yellow", "blue", "cyan", "purple", "white"], "default":"cyan"},
+		{"property":"Brightness", "group":"lighting", "label":"Brightness", "step":"1", "type":"number", "min":"0", "max":"3", "default":"2"},
+		{"property":"interval", "group":"lighting", "label":"interval", "step":"1", "type":"number", "min":"0", "max":"11", "default":"5"},
+		{"property":"Streaking", "group":"lighting", "label":"Streaking", "step":"1", "type":"number", "min":"0", "max":"3", "default":"2"},
+		{"property":"Cometary", "group":"lighting", "label":"Cometary", "step":"1", "type":"number", "min":"0", "max":"3", "default":"2"},
+		{"property":"Speed", "group":"lighting", "label":"Speed", "step":"1", "type":"number", "min":"0", "max":"30", "default":"2"}
 	];
 }
 const MaxLedsInPacket = 20;
@@ -62,17 +68,22 @@ export function Initialize()
 
 	SetupChannels();
 	ReadChannels();
+	SetLampeffect();
 }
 
 export function Render() 
 { 
-  
+	SendEffect();
+}
+
+function SendEffect(shutdown = false)
+{
 	var DevLedCount = 0;
   var Data = [];
   var UpdateChannel = 0;
   for(let i = 0; i < ChannelArray.length; i++)
 	{
-		let {RGBData,ChannelLedCount} = GetChannelRGB(i);
+		let {RGBData,ChannelLedCount} = GetChannelRGB(i,shutdown);
 		
 		if(ChannelLedCount == 0 )
 		{
@@ -109,14 +120,60 @@ export function Render()
 			packet.push(...Data.splice(0, 60));
 			device.write(packet, 65);
 	}
-	
+	device.pause(1);
 }
 
 export function Shutdown() 
 {
-
+	SetLampeffect();
 }
 
+function SetLampeffect()
+{
+	var Shutdown = false;
+	if(Lampeffect === "Shutdown Color")
+	{
+		SendEffect(true);
+		Shutdown = true;
+	}	
+	else if(Lampeffect === "Rainbow Wave")
+	{
+		var hexValue = (0 << 6) | (Brightness << 4) | 0;
+		var hexValue2 = (0 << 5) | (30-Speed);
+		var packet = [0x00,0x8b,hexValue,hexValue2];
+		device.write(packet, 65);
+	}	
+	else if(Lampeffect === "Water rainbow")
+	{
+		var hexValue = (1 << 6) | (Brightness << 4) | interval;
+		var hexValue2 = (0 << 5) | (30-Speed);
+		var packet = [0x00,0x8b,hexValue,hexValue2];
+		device.write(packet, 65);
+	}
+	else if(Lampeffect === "Horse race")
+	{
+		var colors = ["Black", "green", "red", "yellow", "blue", "cyan", "purple", "white"];
+		var indexOfRed = colors.indexOf(LampeffectColor);
+		var hexValue = (2 << 6) | (Brightness << 4) | (Streaking << 2)| Cometary;
+		var hexValue2 = (indexOfRed << 5) | (30-Speed);
+		var packet = [0x00,0x8b,hexValue,hexValue2];
+		device.write(packet, 65);
+	}		
+	else if(Lampeffect === "Meteor chase")
+	{
+		var colors = ["Black", "green", "red", "yellow", "blue", "cyan", "purple", "white"];
+		var indexOfRed = colors.indexOf(LampeffectColor);
+		var hexValue = (3 << 6) | (Brightness << 4) | (Streaking << 2)| Cometary;
+		var hexValue2 = (indexOfRed << 5) | (30-Speed);
+		var packet = [0x00,0x8b,hexValue,hexValue2];
+		device.write(packet, 65);
+	}		
+	if(!Shutdown)
+	{
+		packet = [0x00,0xff];
+		device.write(packet, 65);
+	}
+}
 
 function GetChannelRGB(Channel, shutdown = false)
 {
